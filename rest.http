@@ -1,0 +1,111 @@
+
+# all roles
+GET http://localhost:8080/api/v1/roles
+
+###
+# one role
+GET http://localhost:8080/api/v1/roles/2
+
+###
+# all users
+GET http://localhost:8080/api/v1/users
+
+###
+# one user
+GET http://localhost:8080/api/v1/users/2
+
+###
+# register as normal user
+POST http://localhost:8080/api/v1/session/register
+Content-Type: application/json
+
+{
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "johndoe@example.com",
+    "phone": "9999999999",
+    "password": "lolwth@4"
+}
+
+###
+# register as admin user
+POST http://localhost:8080/api/v1/session/register
+Content-Type: application/json
+
+{
+    "first_name": "John",
+    "last_name": "Admin",
+    "email": "youremail2@title.com",
+    "phone": "9999999999",
+    "password": "lolwth@4"
+}
+
+###
+# activate account
+POST http://localhost:8080/api/v1/session/activate
+Content-Type: application/json
+
+{
+    "email": "johndoe@example.com",
+    "code": "31236956"
+}
+
+###
+# forgot password or request new activation code
+# if forgot password then next request must be reset password
+# or if new activation code is requested then next request must be activate account 
+POST http://localhost:8080/api/v1/session/new-code
+Content-Type: application/json
+
+{
+    "email": "johndoe@example.com",
+    "phone": "9999999999"
+}
+
+###
+# reset password
+POST http://localhost:8080/api/v1/session/reset
+Content-Type: application/json
+
+{
+    "email": "johndoe@example.com",
+    "code": "37537964",
+    "password": "lolwth@3"
+}
+
+###
+# login
+POST  http://localhost:8080/api/v1/session/login
+Content-Type: application/json
+
+{
+    "email": "johndoe@example.com",
+    "password": "lolwth@3"
+}
+
+###
+# my profile
+GET http://localhost:8080/api/v1/users/me
+Content-Type: application/json
+Authorization: Bearer access_token
+
+
+###
+# refresh-token
+POST  http://localhost:8080/api/v1/session/refresh-token
+Content-Type: application/json
+Authorization: Bearer access_token
+
+{
+    "refresh_token": ""
+}
+
+###
+# logout
+POST  http://localhost:8080/api/v1/session/logout
+Content-Type: application/json
+Authorization: Bearer access_token
+
+{
+    "refresh_token": ""
+}
