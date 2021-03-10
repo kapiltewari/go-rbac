@@ -115,18 +115,31 @@ func ValidateRefreshToken(refreshToken string) (paseto.JSONToken, error) {
 //RefreshTokens refreshes tokens
 func (h *Handler) RefreshTokens(c *fiber.Ctx) error {
 	functionName := "RefreshTokens"
-	var req request.RefreshTokensRequest
 
-	if err := c.BodyParser(&req); err != nil {
-		return utils.LogAndSendError(c, fiber.StatusBadRequest, functionName, err)
+	var refreshToken string
+
+	//check for browser cookie
+	refreshToken = c.Cookies("refresh_token")
+
+	//if empty string then check for refresh token in request body
+	if refreshToken == "" {
+		var req request.RefreshTokensRequest
+
+		if err := c.BodyParser(&req); err != nil {
+			return utils.LogAndSendError(c, fiber.StatusBadRequest, functionName, err)
+		}
+
+		errors := utils.ValidateStruct(req)
+		if errors != nil {
+			return utils.SendValidationError(c, errors)
+		}
+
+		//set refresh token
+		refreshToken = req.RefreshToken
 	}
 
-	errors := utils.ValidateStruct(req)
-	if errors != nil {
-		return utils.SendValidationError(c, errors)
-	}
-
-	claims, err := ValidateRefreshToken(req.RefreshToken)
+	//validate refresh token
+	claims, err := ValidateRefreshToken(refreshToken)
 	if err != nil {
 		return utils.LogAndSendError(c, fiber.StatusUnauthorized, functionName, err)
 	}
@@ -137,7 +150,7 @@ func (h *Handler) RefreshTokens(c *fiber.Ctx) error {
 		return utils.LogAndSendError(c, fiber.StatusUnauthorized, functionName, err)
 	}
 
-	//check if refresh_token from request body is matched with redis key
+	//match jti
 	if jti != claims.Jti {
 		return utils.LogAndSendError(c, fiber.StatusUnauthorized, functionName, err)
 	}

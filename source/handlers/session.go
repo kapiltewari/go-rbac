@@ -7,6 +7,7 @@ import (
 	"go-rbac/source/dtos/request"
 	"go-rbac/source/dtos/response"
 	"go-rbac/source/utils"
+	"log"
 	"os"
 	"strconv"
 	"time"
@@ -70,7 +71,7 @@ func (h *Handler) RegisterUser(c *fiber.Ctx) error {
 	otp := utils.GenerateOTP()
 
 	//send otp
-	// sent := utils.SendMail(user.Email, otp)
+	// sent := utils.SendOTP(user.Email, otp)
 	// if !sent {
 	// 	return utils.LogAndSendError(c, fiber.StatusServiceUnavailable, functionName, err)
 	// }
@@ -203,7 +204,7 @@ func (h *Handler) LoginUser(c *fiber.Ctx) error {
 }
 
 // GenerateNewCode user requests for a new verification code
-// to activate their account, resetting password etc
+// to activate their account
 func (h *Handler) GenerateNewCode(c *fiber.Ctx) error {
 	functionName := "GenerateNewCode"
 
@@ -227,6 +228,11 @@ func (h *Handler) GenerateNewCode(c *fiber.Ctx) error {
 		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
 	}
 
+	//if user is active already
+	if user.Active == true {
+		return utils.LogAndSendError(c, fiber.StatusUnprocessableEntity, functionName, err)
+	}
+
 	//match phone numbers
 	if req.Phone != user.Phone {
 		return utils.LogAndSendError(c, fiber.StatusUnprocessableEntity, functionName, err)
@@ -236,7 +242,7 @@ func (h *Handler) GenerateNewCode(c *fiber.Ctx) error {
 	otp := utils.GenerateOTP()
 
 	//send otp
-	// sent := utils.SendMail(req.Email, otp)
+	// sent := utils.SendOTP(req.Email, otp)
 	// if !sent {
 	// 	return utils.LogAndSendError(c, fiber.StatusServiceUnavailable, functionName, nil)
 	// }
@@ -249,11 +255,11 @@ func (h *Handler) GenerateNewCode(c *fiber.Ctx) error {
 	return utils.SendResponse(c, fiber.StatusOK, "New one time code is sent.")
 }
 
-//ResetPassword updates the user's password
-func (h *Handler) ResetPassword(c *fiber.Ctx) error {
-	functionName := "ResetPassword"
+//ForgotPassword ...
+func (h *Handler) ForgotPassword(c *fiber.Ctx) error {
+	functionName := "ForgotPassword"
 
-	var req request.ResetPasswordRequest
+	var req request.ForgotPasswordRequest
 
 	if err := c.BodyParser(&req); err != nil {
 		return utils.LogAndSendError(c, fiber.StatusBadRequest, functionName, err)
@@ -265,22 +271,77 @@ func (h *Handler) ResetPassword(c *fiber.Ctx) error {
 		return utils.SendValidationError(c, errors)
 	}
 
-	//get the key
-	emailVerificationCode := fmt.Sprintf("verification-code-email-%v", req.Email)
-	code, err := h.Redis.Get(c.Context(), emailVerificationCode).Result()
-	if err != nil {
-		return utils.LogAndSendError(c, fiber.StatusUnauthorized, functionName, err)
-	}
-
-	//check if redis code is matched with req.Code
-	if code != req.Code {
-		return utils.LogAndSendError(c, fiber.StatusUnauthorized, functionName, err)
-	}
-
 	//fetch user
 	user, err := models.Users(models.UserWhere.Email.EQ(req.Email)).One(c.Context(), h.DB)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return utils.LogAndSendError(c, fiber.StatusNotFound, functionName, err)
+
+		}
 		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+	}
+
+	//generate a new password reset token
+	passwordResetToken, err := utils.GeneratePasswordResetToken(user.Password, user.Email, user.UserID)
+	if err != nil {
+		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+	}
+
+	//create link
+	passwordResetLink := fmt.Sprintf("%v/reset-password/%v/%v", os.Getenv("URL"), user.UserID, passwordResetToken)
+	log.Println(passwordResetLink)
+
+	//send link
+	// sent := utils.SendPasswordResetLink(req.Email, passwordResetLink)
+	// if !sent {
+	// 	return utils.LogAndSendError(c, fiber.StatusServiceUnavailable, functionName, nil)
+	// }
+
+	return utils.SendResponse(c, fiber.StatusOK, "Password reset link is sent.")
+}
+
+//ResetPassword updates the user's password
+func (h *Handler) ResetPassword(c *fiber.Ctx) error {
+	functionName := "ResetPassword"
+
+	//get params
+	paramID := c.Params("id")
+	passwordResetToken := c.Params("token")
+
+	//request body
+	var req request.ResetPasswordRequest
+
+	if err := c.BodyParser(&req); err != nil {
+		return utils.LogAndSendError(c, fiber.StatusBadRequest, functionName, err)
+	}
+
+	//validate request body
+	errors := utils.ValidateStruct(req)
+	if errors != nil {
+		return utils.SendValidationError(c, errors)
+	}
+
+	//convert to int
+	userID, err := strconv.Atoi(paramID)
+	if err != nil {
+		return utils.LogAndSendError(c, fiber.StatusBadRequest, functionName, err)
+	}
+
+	//fetch user
+	user, err := models.Users(models.UserWhere.UserID.EQ(int64(userID))).One(c.Context(), h.DB)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return utils.LogAndSendError(c, fiber.StatusNotFound, functionName, err)
+		}
+		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+	}
+
+	//parse claims
+	claims, err := utils.ValidatePasswordResetToken(user.Password, passwordResetToken)
+
+	//match email
+	if user.Email != claims.Email {
+		return utils.LogAndSendError(c, fiber.StatusUnprocessableEntity, functionName, err)
 	}
 
 	//hash new password
@@ -291,28 +352,38 @@ func (h *Handler) ResetPassword(c *fiber.Ctx) error {
 	user.Password = string(hashedPassword)
 	user.Update(c.Context(), h.DB, boil.Infer())
 
-	//delete that key
-	h.Redis.Del(c.Context(), fmt.Sprintf("verification-code-email-%v", req.Email))
-
 	return utils.SendResponse(c, fiber.StatusOK, nil)
 }
 
 //LogoutUser ...
 func (h *Handler) LogoutUser(c *fiber.Ctx) error {
 	functionName := "LogoutUser"
-	var req request.RefreshTokensRequest
 
-	if err := c.BodyParser(&req); err != nil {
-		return utils.LogAndSendError(c, fiber.StatusBadRequest, functionName, err)
+	var refreshToken string
+
+	//check for browser cookie
+	refreshToken = c.Cookies("refresh_token")
+
+	//if empty string then check for refresh token in request body
+	if refreshToken == "" {
+		var req request.RefreshTokensRequest
+
+		if err := c.BodyParser(&req); err != nil {
+			return utils.LogAndSendError(c, fiber.StatusBadRequest, functionName, err)
+		}
+
+		//validate
+		errors := utils.ValidateStruct(req)
+		if errors != nil {
+			return utils.SendValidationError(c, errors)
+		}
+
+		//set refresh token
+		refreshToken = req.RefreshToken
 	}
 
-	//validate
-	errors := utils.ValidateStruct(req)
-	if errors != nil {
-		return utils.SendValidationError(c, errors)
-	}
-
-	claims, err := ValidateRefreshToken(req.RefreshToken)
+	//validate refresh token
+	claims, err := ValidateRefreshToken(refreshToken)
 	if err != nil {
 		return utils.LogAndSendError(c, fiber.StatusUnauthorized, functionName, err)
 	}
@@ -323,11 +394,35 @@ func (h *Handler) LogoutUser(c *fiber.Ctx) error {
 		return utils.LogAndSendError(c, fiber.StatusUnauthorized, functionName, err)
 	}
 
-	//check if refresh_token from request body is matched with redis key
+	//match jti
 	if jti != claims.Jti {
 		return utils.LogAndSendError(c, fiber.StatusUnauthorized, functionName, err)
 	}
 
+	//delete httpOnly cookies
+	c.Cookie(&fiber.Cookie{
+		Name:     "access_token",
+		Value:    "",
+		Expires:  time.Now().Local(),
+		Path:     "/",
+		Domain:   "localhost",
+		MaxAge:   -1,
+		SameSite: "strict",
+		HTTPOnly: true,
+	})
+
+	c.Cookie(&fiber.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		Expires:  time.Now().Local(),
+		Path:     "/",
+		Domain:   "localhost",
+		MaxAge:   -1,
+		SameSite: "strict",
+		HTTPOnly: true,
+	})
+
+	//delete redis key
 	h.Redis.Del(c.Context(), fmt.Sprintf("refresh-token-user-id-%s", claims.Subject))
 
 	return utils.SendResponse(c, fiber.StatusNoContent, nil)

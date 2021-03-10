@@ -12,7 +12,8 @@ func (r *Router) sessionRoutes(router fiber.Router) {
 	router.Post("/login", r.handler.LoginUser)
 	router.Post("/activate", r.handler.ActivateAccount)
 	router.Post("/new-code", r.handler.GenerateNewCode)
-	router.Post("/reset", r.handler.ResetPassword)
+	router.Post("/forgot-password", r.handler.ForgotPassword)
+	router.Post("/reset-password/:id/:token", r.handler.ResetPassword)
 	router.Post("/logout", middlewares.LoggedIn(), r.handler.LogoutUser)
 	router.Post("/refresh-token", r.handler.RefreshTokens)
 }

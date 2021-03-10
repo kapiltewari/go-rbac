@@ -21,7 +21,7 @@ type AccountActivationRequest struct {
 	Email string `json:"email" validate:"required,email,min=8,max=255"`
 }
 
-//GenerateNewCodeRequest to generate a new password reset code, email reverification code etc
+//GenerateNewCodeRequest to generate a new email verification code
 type GenerateNewCodeRequest struct {
 	Email string `json:"email" validate:"required,email,min=8,max=255"`
 	Phone string `json:"phone" validate:"required,min=10,max=10"`
@@ -32,9 +32,12 @@ type RefreshTokensRequest struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
 }
 
+//ForgotPasswordRequest ...
+type ForgotPasswordRequest struct {
+	Email string `json:"email" validate:"required,email,min=8,max=255"`
+}
+
 //ResetPasswordRequest ...
 type ResetPasswordRequest struct {
-	Code     string `json:"code" validate:"required"`
-	Email    string `json:"email" validate:"required,email,min=8,max=255"`
 	Password string `json:"password" validate:"required,min=8"`
 }
