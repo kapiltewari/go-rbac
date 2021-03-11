@@ -1,4 +1,3 @@
-
 # all roles
 GET http://localhost:8080/api/v1/roles
 
@@ -92,25 +91,15 @@ Content-Type: application/json
 # my profile
 GET http://localhost:8080/api/v1/users/me
 Content-Type: application/json
-Authorization: Bearer access_token
 
 
 ###
 # refresh-token
 POST  http://localhost:8080/api/v1/session/refresh-token
 Content-Type: application/json
-Authorization: Bearer access_token
 
-{
-    "refresh_token": ""
-}
 
 ###
 # logout
 POST  http://localhost:8080/api/v1/session/logout
 Content-Type: application/json
-Authorization: Bearer access_token
-
-{
-    "refresh_token": ""
-}

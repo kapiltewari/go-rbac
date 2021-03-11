@@ -159,6 +159,30 @@ func (h *Handler) RefreshTokens(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
 
+	//set new httpOnly cookies for browser clients
+	c.Cookie(&fiber.Cookie{
+		Name:     "access_token",
+		Value:    accessToken,
+		Expires:  time.Now().Local().Add(time.Minute * 60),
+		Path:     "/",
+		Domain:   "localhost",
+		MaxAge:   3600, //1 hour
+		SameSite: "strict",
+		HTTPOnly: true,
+	})
+
+	c.Cookie(&fiber.Cookie{
+		Name:     "refresh_token",
+		Value:    refreshToken,
+		Expires:  time.Now().Local().Add(time.Hour * 24 * 10),
+		Path:     "/",
+		Domain:   "localhost",
+		MaxAge:   864000, //10 days
+		SameSite: "strict",
+		HTTPOnly: true,
+	})
+
+	//response for mobile clients
 	return utils.SendResponse(c, fiber.StatusOK, &response.TokenResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
