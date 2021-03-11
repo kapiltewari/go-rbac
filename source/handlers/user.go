@@ -14,8 +14,6 @@ import (
 
 // GetUsers ...
 func (h *Handler) GetUsers(c *fiber.Ctx) error {
-	functionName := "GetUsers"
-
 	//query param
 	email := strings.ToLower(c.Query("email"))
 
@@ -25,16 +23,12 @@ func (h *Handler) GetUsers(c *fiber.Ctx) error {
 	if email != "" {
 		result, err = models.Users(models.UserWhere.Email.EQ(email), qm.Load(models.UserRels.Role)).All(c.Context(), h.DB)
 		if err != nil {
-			if err == sql.ErrNoRows {
-				return utils.LogAndSendError(c, fiber.StatusNotFound, functionName, err)
-
-			}
-			return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+			return utils.SendError(c, fiber.StatusInternalServerError, "")
 		}
 	} else {
 		result, err = models.Users(qm.Load(models.UserRels.Role)).All(c.Context(), h.DB)
 		if err != nil {
-			return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+			return utils.SendError(c, fiber.StatusInternalServerError, "")
 		}
 	}
 
@@ -46,7 +40,6 @@ func (h *Handler) GetUsers(c *fiber.Ctx) error {
 			UserID:    user.UserID,
 			FirstName: user.FirstName,
 			LastName:  user.LastName,
-			Email:     user.Email,
 			CreatedAt: user.CreatedAt,
 			Role: &response.RoleResponse{
 				Name: user.R.Role.Name,
@@ -59,25 +52,27 @@ func (h *Handler) GetUsers(c *fiber.Ctx) error {
 
 //GetUserByID from the database
 func (h *Handler) GetUserByID(c *fiber.Ctx) error {
-	functionName := "GetUserByID"
 	paramID := c.Params("id")
 
 	//convert string to int
 	id, err := strconv.Atoi(paramID)
 	if err != nil {
-		return utils.LogAndSendError(c, fiber.StatusBadRequest, functionName, err)
+		return utils.SendError(c, fiber.StatusBadRequest, "")
 	}
 
 	user, err := models.Users(models.UserWhere.UserID.EQ(int64(id)), qm.Load(models.UserRels.Role)).One(c.Context(), h.DB)
 	if err != nil {
-		return utils.LogAndSendError(c, fiber.StatusNotFound, functionName, err)
+		if err == sql.ErrNoRows {
+			return utils.SendError(c, fiber.StatusNotFound, "user not found")
+		}
+
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
 
 	return utils.SendResponse(c, fiber.StatusOK, &response.UserResponse{
 		UserID:    user.UserID,
 		FirstName: user.FirstName,
 		LastName:  user.LastName,
-		Email:     user.Email,
 		CreatedAt: user.CreatedAt,
 		Role: &response.RoleResponse{
 			Name: user.R.Role.Name,
@@ -87,7 +82,6 @@ func (h *Handler) GetUserByID(c *fiber.Ctx) error {
 
 //MyProfile returns current user profile
 func (h *Handler) MyProfile(c *fiber.Ctx) error {
-	functionName := "MyProfile"
 	userID := c.Get("user")
 
 	//convert string to int
@@ -95,7 +89,7 @@ func (h *Handler) MyProfile(c *fiber.Ctx) error {
 
 	user, err := models.Users(models.UserWhere.UserID.EQ(int64(currentUser)), qm.Load(models.UserRels.Role)).One(c.Context(), h.DB)
 	if err != nil {
-		return utils.LogAndSendError(c, fiber.StatusNotFound, functionName, err)
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
 
 	return utils.SendResponse(c, fiber.StatusOK, &response.UserResponse{

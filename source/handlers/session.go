@@ -19,11 +19,10 @@ import (
 
 // RegisterUser ...
 func (h *Handler) RegisterUser(c *fiber.Ctx) error {
-	functionName := "RegisterUser"
 	var req request.RegistrationRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.LogAndSendError(c, fiber.StatusBadRequest, functionName, err)
+		return utils.SendError(c, fiber.StatusBadRequest, "")
 	}
 
 	//validate
@@ -35,16 +34,16 @@ func (h *Handler) RegisterUser(c *fiber.Ctx) error {
 	//check if user is already registered or not
 	exists, err := models.Users(models.UserWhere.Email.EQ(req.Email)).Exists(c.Context(), h.DB)
 	if err != nil {
-		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
 	if exists {
-		return utils.LogAndSendError(c, fiber.StatusConflict, functionName, err)
+		return utils.SendError(c, fiber.StatusConflict, "email already have been registered")
 	}
 
 	//hash password
 	hashedPassword, err := utils.HashPassword(req.Password)
 	if err != nil {
-		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
 
 	var user models.User
@@ -73,31 +72,30 @@ func (h *Handler) RegisterUser(c *fiber.Ctx) error {
 	//send otp
 	// sent := utils.SendOTP(user.Email, otp)
 	// if !sent {
-	// 	return utils.LogAndSendError(c, fiber.StatusServiceUnavailable, functionName, err)
+	// 	return utils.SendError(c, fiber.StatusServiceUnavailable, "")
 	// }
 
 	//insert user
 	err = user.Insert(c.Context(), h.DB, boil.Infer())
 	if err != nil {
-		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
 
 	//set verification code to redis key for 10 minutes
 	emailVerificationCode := fmt.Sprintf("verification-code-email-%v", user.Email)
 	if err := h.Redis.Set(c.Context(), emailVerificationCode, otp, time.Duration(10*time.Minute)).Err(); err != nil {
-		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
 
-	return utils.SendResponse(c, fiber.StatusCreated, "Created. Please verify your email. And then login.")
+	return utils.SendResponse(c, fiber.StatusCreated, "user successfully registered")
 }
 
 //ActivateAccount activates a new registered account
 func (h *Handler) ActivateAccount(c *fiber.Ctx) error {
-	functionName := "ActivateAccount"
 	var req request.AccountActivationRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.LogAndSendError(c, fiber.StatusBadRequest, functionName, err)
+		return utils.SendError(c, fiber.StatusBadRequest, "")
 	}
 
 	//validate
@@ -106,23 +104,33 @@ func (h *Handler) ActivateAccount(c *fiber.Ctx) error {
 		return utils.SendValidationError(c, errors)
 	}
 
+	//fetch user
+	user, err := models.Users(models.UserWhere.Email.EQ(req.Email)).One(c.Context(), h.DB)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return utils.SendError(c, fiber.StatusNotFound, "user does not exist")
+		}
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
+	}
+
+	//check if the user is active already or not
+	if user.Active == true {
+		return utils.SendError(c, fiber.StatusUnprocessableEntity, "user is active already")
+	}
+
 	//get the key
 	emailVerificationCode := fmt.Sprintf("verification-code-email-%v", req.Email)
 	code, err := h.Redis.Get(c.Context(), emailVerificationCode).Result()
 	if err != nil {
-		return utils.LogAndSendError(c, fiber.StatusUnauthorized, functionName, err)
+		return utils.SendError(c, fiber.StatusUnprocessableEntity, "")
 	}
 
 	//check if redis code is matched with req.Code
 	if code != req.Code {
-		return utils.LogAndSendError(c, fiber.StatusUnauthorized, functionName, err)
+		return utils.SendError(c, fiber.StatusUnprocessableEntity, "")
 	}
 
 	//update user status to active
-	user, err := models.Users(models.UserWhere.Email.EQ(req.Email)).One(c.Context(), h.DB)
-	if err != nil {
-		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
-	}
 	user.Active = true
 	user.Update(c.Context(), h.DB, boil.Infer())
 
@@ -134,12 +142,10 @@ func (h *Handler) ActivateAccount(c *fiber.Ctx) error {
 
 //LoginUser ...
 func (h *Handler) LoginUser(c *fiber.Ctx) error {
-	functionName := "LoginUser"
-
 	var req request.LoginRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.LogAndSendError(c, fiber.StatusBadRequest, functionName, err)
+		return utils.SendError(c, fiber.StatusBadRequest, "")
 	}
 
 	//validate
@@ -149,32 +155,32 @@ func (h *Handler) LoginUser(c *fiber.Ctx) error {
 	}
 
 	//get user by email
-	existingUser, err := models.Users(qm.Load(qm.Rels(models.UserRels.Role)), models.UserWhere.Email.EQ(req.Email)).One(c.Context(), h.DB)
+	existingUser, err := models.Users(qm.Load(models.UserRels.Role), models.UserWhere.Email.EQ(req.Email)).One(c.Context(), h.DB)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return utils.LogAndSendError(c, fiber.StatusNotFound, functionName, err)
+			return utils.SendError(c, fiber.StatusNotFound, "invalid login details")
 
 		}
-		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
 
 	//compare user hashed password and entered password and return if any error
 	if err := utils.MatchPassword(existingUser.Password, req.Password); err != nil {
-		return utils.LogAndSendError(c, fiber.StatusNotFound, functionName, err)
+		return utils.SendError(c, fiber.StatusNotFound, "invalid login details")
 	}
 
 	//if password match, check if the user is active or not
 	if existingUser.Active == false {
-		return utils.LogAndSendError(c, fiber.StatusForbidden, functionName, err)
+		return utils.SendError(c, fiber.StatusForbidden, "user is not active")
 	}
 
 	//else generate tokens
 	accessToken, refreshToken, err := h.GenerateTokens(c, existingUser.R.Role.Name, strconv.FormatInt(existingUser.UserID, 10))
 	if err != nil {
-		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
 
-	//set httpOnly cookies
+	//set httpOnly cookies for browser clients
 	c.Cookie(&fiber.Cookie{
 		Name:     "access_token",
 		Value:    accessToken,
@@ -197,20 +203,19 @@ func (h *Handler) LoginUser(c *fiber.Ctx) error {
 		HTTPOnly: true,
 	})
 
+	//for mobile clients
 	return utils.SendResponse(c, fiber.StatusOK, &response.TokenResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	})
 }
 
-// GenerateNewCode user requests for a new verification code
-// to activate their account
-func (h *Handler) GenerateNewCode(c *fiber.Ctx) error {
-	functionName := "GenerateNewCode"
+// NewActivationCode user requests for a new activation code
+func (h *Handler) NewActivationCode(c *fiber.Ctx) error {
+	var req request.NewActivationCodeRequest
 
-	var req request.GenerateNewCodeRequest
 	if err := c.BodyParser(&req); err != nil {
-		return utils.LogAndSendError(c, fiber.StatusBadRequest, functionName, err)
+		return utils.SendError(c, fiber.StatusBadRequest, "")
 	}
 
 	//validate
@@ -223,19 +228,19 @@ func (h *Handler) GenerateNewCode(c *fiber.Ctx) error {
 	user, err := models.Users(models.UserWhere.Email.EQ(req.Email)).One(c.Context(), h.DB)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return utils.LogAndSendError(c, fiber.StatusNotFound, functionName, err)
+			return utils.SendError(c, fiber.StatusNotFound, "user does not exist")
 		}
-		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
 
 	//if user is active already
 	if user.Active == true {
-		return utils.LogAndSendError(c, fiber.StatusUnprocessableEntity, functionName, err)
+		return utils.SendError(c, fiber.StatusUnprocessableEntity, "user is active already")
 	}
 
 	//match phone numbers
 	if req.Phone != user.Phone {
-		return utils.LogAndSendError(c, fiber.StatusUnprocessableEntity, functionName, err)
+		return utils.SendError(c, fiber.StatusUnprocessableEntity, "")
 	}
 
 	//generate a new otp
@@ -244,25 +249,23 @@ func (h *Handler) GenerateNewCode(c *fiber.Ctx) error {
 	//send otp
 	// sent := utils.SendOTP(req.Email, otp)
 	// if !sent {
-	// 	return utils.LogAndSendError(c, fiber.StatusServiceUnavailable, functionName, nil)
+	// 	return utils.SendError(c, fiber.StatusServiceUnavailable, functionName, nil)
 	// }
 
 	//set verification code to redis key for 10 minutes
 	emailVerificationCode := fmt.Sprintf("verification-code-email-%v", req.Email)
 	if err := h.Redis.Set(c.Context(), emailVerificationCode, otp, time.Duration(10*time.Minute)).Err(); err != nil {
-		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
-	return utils.SendResponse(c, fiber.StatusOK, "New one time code is sent.")
+	return utils.SendResponse(c, fiber.StatusOK, "new verification code is sent")
 }
 
 //ForgotPassword ...
 func (h *Handler) ForgotPassword(c *fiber.Ctx) error {
-	functionName := "ForgotPassword"
-
 	var req request.ForgotPasswordRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.LogAndSendError(c, fiber.StatusBadRequest, functionName, err)
+		return utils.SendError(c, fiber.StatusBadRequest, "")
 	}
 
 	//validate
@@ -275,16 +278,16 @@ func (h *Handler) ForgotPassword(c *fiber.Ctx) error {
 	user, err := models.Users(models.UserWhere.Email.EQ(req.Email)).One(c.Context(), h.DB)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return utils.LogAndSendError(c, fiber.StatusNotFound, functionName, err)
+			return utils.SendError(c, fiber.StatusNotFound, "user does not exist")
 
 		}
-		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
 
 	//generate a new password reset token
 	passwordResetToken, err := utils.GeneratePasswordResetToken(user.Password, user.Email, user.UserID)
 	if err != nil {
-		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
 
 	//create link
@@ -294,16 +297,14 @@ func (h *Handler) ForgotPassword(c *fiber.Ctx) error {
 	//send link
 	// sent := utils.SendPasswordResetLink(req.Email, passwordResetLink)
 	// if !sent {
-	// 	return utils.LogAndSendError(c, fiber.StatusServiceUnavailable, functionName, nil)
+	// 	return utils.SendError(c, fiber.StatusServiceUnavailable, functionName, nil)
 	// }
 
-	return utils.SendResponse(c, fiber.StatusOK, "Password reset link is sent.")
+	return utils.SendResponse(c, fiber.StatusOK, "password reset link is sent")
 }
 
 //ResetPassword updates the user's password
 func (h *Handler) ResetPassword(c *fiber.Ctx) error {
-	functionName := "ResetPassword"
-
 	//get params
 	paramID := c.Params("id")
 	passwordResetToken := c.Params("token")
@@ -312,7 +313,7 @@ func (h *Handler) ResetPassword(c *fiber.Ctx) error {
 	var req request.ResetPasswordRequest
 
 	if err := c.BodyParser(&req); err != nil {
-		return utils.LogAndSendError(c, fiber.StatusBadRequest, functionName, err)
+		return utils.SendError(c, fiber.StatusBadRequest, "")
 	}
 
 	//validate request body
@@ -324,16 +325,16 @@ func (h *Handler) ResetPassword(c *fiber.Ctx) error {
 	//convert to int
 	userID, err := strconv.Atoi(paramID)
 	if err != nil {
-		return utils.LogAndSendError(c, fiber.StatusBadRequest, functionName, err)
+		return utils.SendError(c, fiber.StatusBadRequest, "")
 	}
 
 	//fetch user
 	user, err := models.Users(models.UserWhere.UserID.EQ(int64(userID))).One(c.Context(), h.DB)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return utils.LogAndSendError(c, fiber.StatusNotFound, functionName, err)
+			return utils.SendError(c, fiber.StatusNotFound, "user does not exist")
 		}
-		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
 
 	//parse claims
@@ -341,13 +342,13 @@ func (h *Handler) ResetPassword(c *fiber.Ctx) error {
 
 	//match email
 	if user.Email != claims.Email {
-		return utils.LogAndSendError(c, fiber.StatusUnprocessableEntity, functionName, err)
+		return utils.SendError(c, fiber.StatusUnprocessableEntity, "")
 	}
 
 	//hash new password
 	hashedPassword, err := utils.HashPassword(req.Password)
 	if err != nil {
-		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
 	user.Password = string(hashedPassword)
 	user.Update(c.Context(), h.DB, boil.Infer())
@@ -357,8 +358,6 @@ func (h *Handler) ResetPassword(c *fiber.Ctx) error {
 
 //LogoutUser ...
 func (h *Handler) LogoutUser(c *fiber.Ctx) error {
-	functionName := "LogoutUser"
-
 	var refreshToken string
 
 	//check for browser cookie
@@ -369,7 +368,7 @@ func (h *Handler) LogoutUser(c *fiber.Ctx) error {
 		var req request.RefreshTokensRequest
 
 		if err := c.BodyParser(&req); err != nil {
-			return utils.LogAndSendError(c, fiber.StatusBadRequest, functionName, err)
+			return utils.SendError(c, fiber.StatusBadRequest, "")
 		}
 
 		//validate
@@ -385,18 +384,18 @@ func (h *Handler) LogoutUser(c *fiber.Ctx) error {
 	//validate refresh token
 	claims, err := ValidateRefreshToken(refreshToken)
 	if err != nil {
-		return utils.LogAndSendError(c, fiber.StatusUnauthorized, functionName, err)
+		return utils.SendError(c, fiber.StatusUnauthorized, "")
 	}
 
 	//get redis key refresh-token-user-id-%s
 	jti, err := h.Redis.Get(c.Context(), fmt.Sprintf("refresh-token-user-id-%s", claims.Subject)).Result()
 	if err != nil {
-		return utils.LogAndSendError(c, fiber.StatusUnauthorized, functionName, err)
+		return utils.SendError(c, fiber.StatusUnprocessableEntity, "")
 	}
 
 	//match jti
 	if jti != claims.Jti {
-		return utils.LogAndSendError(c, fiber.StatusUnauthorized, functionName, err)
+		return utils.SendError(c, fiber.StatusUnauthorized, "")
 	}
 
 	//delete httpOnly cookies

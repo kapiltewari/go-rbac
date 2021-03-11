@@ -40,8 +40,4 @@ func (r *Router) apiRoutes(router fiber.Router) {
 	//role routes
 	roles := router.Group("/roles")
 	r.roleRoutes(roles)
-
-	//search routes
-	// search := router.Group("/search")
-	// r.searchRoutes(search)
 }

@@ -23,9 +23,16 @@ type errorResponse struct {
 	Message string `json:"message"`
 }
 
+//LogError ...
+func LogError(funcName string, err error) {
+	logrus.WithFields(logrus.Fields{
+		"function": funcName,
+	}).Error(err)
+}
+
 //SendResponse with success response
 func SendResponse(c *fiber.Ctx, code int, data interface{}) error {
-	return c.Status(code).JSON(&successResponse{
+	return c.Status(code).JSON(successResponse{
 		Success: true,
 		Code:    code,
 		Data:    data,
@@ -34,41 +41,38 @@ func SendResponse(c *fiber.Ctx, code int, data interface{}) error {
 
 //SendValidationError ...
 func SendValidationError(c *fiber.Ctx, errors interface{}) error {
-	return c.Status(fiber.StatusUnprocessableEntity).JSON(&validationErrorResponse{
+	return c.Status(fiber.StatusUnprocessableEntity).JSON(validationErrorResponse{
 		Success: false,
 		Code:    fiber.StatusUnprocessableEntity,
 		Errors:  errors,
 	})
 }
 
-//LogAndSendError logs the error and send error response
-func LogAndSendError(c *fiber.Ctx, code int, function string, err error) error {
-	var message string
-	//logs the error
-	logrus.WithFields(logrus.Fields{
-		"function": function,
-	}).Error(err)
-
-	switch code {
-	case fiber.StatusNotFound:
-		message = "Not Found"
-	case fiber.StatusInternalServerError:
-		message = "Internal Server Error"
-	case fiber.StatusBadRequest:
-		message = "Bad Request"
-	case fiber.StatusConflict:
-		message = "Conflict"
-	case fiber.StatusUnauthorized:
-		message = "Unauthorized"
-	case fiber.StatusForbidden:
-		message = "Forbidden"
-	case fiber.StatusUnprocessableEntity:
-		message = "Unprocessable Entity"
-	case fiber.StatusServiceUnavailable:
-		message = "Service Unavailable"
+//SendError send error response
+func SendError(c *fiber.Ctx, code int, message string) error {
+	//if message in empty
+	if message == "" {
+		switch code {
+		case fiber.StatusNotFound:
+			message = "not found"
+		case fiber.StatusInternalServerError:
+			message = "internal server error"
+		case fiber.StatusBadRequest:
+			message = "bad request"
+		case fiber.StatusConflict:
+			message = "conflict"
+		case fiber.StatusUnauthorized:
+			message = "unauthorized"
+		case fiber.StatusForbidden:
+			message = "forbidden"
+		case fiber.StatusUnprocessableEntity:
+			message = "unprocessable entity"
+		case fiber.StatusServiceUnavailable:
+			message = "service unavailable"
+		}
 	}
 
-	return c.Status(code).JSON(&errorResponse{
+	return c.Status(code).JSON(errorResponse{
 		Success: false,
 		Code:    code,
 		Message: message,

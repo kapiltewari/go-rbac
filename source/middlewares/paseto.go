@@ -25,7 +25,7 @@ func LoggedIn(roles ...string) fiber.Handler {
 			//check length
 			if len(authorizationHeader) < 7 {
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error": "Invalid Header",
+					"message": "invalid header",
 				})
 			}
 
@@ -34,7 +34,7 @@ func LoggedIn(roles ...string) fiber.Handler {
 			claims, err = handlers.ValidateAccessToken(tokenFromHeader)
 			if err != nil {
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error": "Invalid Token",
+					"message": "invalid token",
 				})
 			}
 		} else {
@@ -42,7 +42,7 @@ func LoggedIn(roles ...string) fiber.Handler {
 			claims, err = handlers.ValidateAccessToken(accessTokenFromCookies)
 			if err != nil {
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error": "Invalid Token",
+					"message": "invalid token",
 				})
 			}
 		}
@@ -52,7 +52,7 @@ func LoggedIn(roles ...string) fiber.Handler {
 			ok := checkRole(claims.Audience, roles)
 			if !ok {
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error": "Unauthorized",
+					"message": "unauthorized",
 				})
 			}
 		}

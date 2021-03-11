@@ -12,8 +12,6 @@ import (
 
 // GetRoles ...
 func (h *Handler) GetRoles(c *fiber.Ctx) error {
-	functionName := "GetRoles"
-
 	//query param
 	name := strings.ToLower(c.Query("name"))
 
@@ -23,12 +21,12 @@ func (h *Handler) GetRoles(c *fiber.Ctx) error {
 	if name != "" {
 		roles, err = models.Roles(models.RoleWhere.Name.EQ(name)).All(c.Context(), h.DB)
 		if err != nil {
-			return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+			return utils.SendError(c, fiber.StatusInternalServerError, "")
 		}
 	} else {
 		roles, err = models.Roles().All(c.Context(), h.DB)
 		if err != nil {
-			return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+			return utils.SendError(c, fiber.StatusInternalServerError, "")
 		}
 	}
 
@@ -37,24 +35,22 @@ func (h *Handler) GetRoles(c *fiber.Ctx) error {
 
 //GetRoleByID ...
 func (h *Handler) GetRoleByID(c *fiber.Ctx) error {
-	functionName := "GetRoleByID"
-
 	//string param id
 	paramID := c.Params("id")
 
 	//convert to int
 	id, err := strconv.Atoi(paramID)
 	if err != nil {
-		return utils.LogAndSendError(c, fiber.StatusBadRequest, functionName, err)
+		return utils.SendError(c, fiber.StatusBadRequest, "")
 	}
 
 	//fetch role with id
 	role, err := models.Roles(models.RoleWhere.RoleID.EQ(int64(id))).One(c.Context(), h.DB)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return utils.LogAndSendError(c, fiber.StatusNotFound, functionName, err)
+			return utils.SendError(c, fiber.StatusNotFound, "role does not exist")
 		}
-		return utils.LogAndSendError(c, fiber.StatusInternalServerError, functionName, err)
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
 
 	return utils.SendResponse(c, fiber.StatusOK, role)
