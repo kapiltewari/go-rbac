@@ -21,8 +21,8 @@ type AccountActivationRequest struct {
 	Email string `json:"email" validate:"required,email,min=8,max=255"`
 }
 
-//NewActivationCodeRequest to request a new email verification code
-type NewActivationCodeRequest struct {
+//AccountReverificationRequest to request a new email verification code
+type AccountReverificationRequest struct {
 	Email string `json:"email" validate:"required,email,min=8,max=255"`
 	Phone string `json:"phone" validate:"required,min=10,max=10"`
 }

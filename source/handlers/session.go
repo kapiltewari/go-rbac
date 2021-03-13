@@ -90,8 +90,8 @@ func (h *Handler) RegisterUser(c *fiber.Ctx) error {
 	return utils.SendResponse(c, fiber.StatusCreated, "user successfully registered")
 }
 
-//ActivateAccount activates a new registered account
-func (h *Handler) ActivateAccount(c *fiber.Ctx) error {
+//AccountActivation activates a new registered account
+func (h *Handler) AccountActivation(c *fiber.Ctx) error {
 	var req request.AccountActivationRequest
 
 	if err := c.BodyParser(&req); err != nil {
@@ -210,9 +210,9 @@ func (h *Handler) LoginUser(c *fiber.Ctx) error {
 	})
 }
 
-// NewActivationCode user requests for a new activation code
-func (h *Handler) NewActivationCode(c *fiber.Ctx) error {
-	var req request.NewActivationCodeRequest
+// AccountReverification user requests for a new activation code
+func (h *Handler) AccountReverification(c *fiber.Ctx) error {
+	var req request.AccountReverificationRequest
 
 	if err := c.BodyParser(&req); err != nil {
 		return utils.SendError(c, fiber.StatusBadRequest, "")

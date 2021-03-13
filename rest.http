@@ -41,7 +41,7 @@ Content-Type: application/json
 
 ###
 # activate account
-POST http://localhost:8080/api/v1/session/activate-account
+POST http://localhost:8080/api/v1/session/account/activate
 Content-Type: application/json
 
 {
@@ -51,7 +51,7 @@ Content-Type: application/json
 
 ###
 # next request must be activate account 
-POST http://localhost:8080/api/v1/session/new-activation-code
+POST http://localhost:8080/api/v1/session/account/reverify
 Content-Type: application/json
 
 {
@@ -61,7 +61,7 @@ Content-Type: application/json
 
 ###
 # forgot password
-POST  http://localhost:8080/api/v1/session/forgot-password
+POST  http://localhost:8080/api/v1/session/password/forgot
 Content-Type: application/json
 
 {
@@ -70,7 +70,7 @@ Content-Type: application/json
 
 ###
 # reset password
-POST http://localhost:8080/api/v1/session/reset-password/:id/:token
+POST http://localhost:8080/api/v1/session/password/reset/:id/:token
 Content-Type: application/json
 
 {
@@ -84,7 +84,7 @@ Content-Type: application/json
 
 {
     "email": "johndoe@example.co",
-    "password": "lolwth@4"
+    "password": "lolwth@3"
 }
 
 ###
@@ -95,13 +95,13 @@ Content-Type: application/json
 
 ###
 # refresh-token
-POST  http://localhost:8080/api/v1/session/refresh-token
+POST  http://localhost:8080/api/v1/session/tokens/refresh
 Content-Type: application/json
 
 
 ###
 # change password
-POST http://localhost:8080/api/v1/users/change-password
+POST http://localhost:8080/api/v1/users/password/change
 Content-Type: application/json
 
 {
