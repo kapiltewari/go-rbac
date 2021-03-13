@@ -137,7 +137,7 @@ func (h *Handler) ActivateAccount(c *fiber.Ctx) error {
 	//delete that key
 	h.Redis.Del(c.Context(), fmt.Sprintf("verification-code-email-%v", req.Email))
 
-	return utils.SendResponse(c, fiber.StatusOK, nil)
+	return utils.SendResponse(c, fiber.StatusOK, "user activated")
 }
 
 //LoginUser ...
@@ -350,10 +350,12 @@ func (h *Handler) ResetPassword(c *fiber.Ctx) error {
 	if err != nil {
 		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
+
+	//update user password
 	user.Password = string(hashedPassword)
 	user.Update(c.Context(), h.DB, boil.Infer())
 
-	return utils.SendResponse(c, fiber.StatusOK, nil)
+	return utils.SendResponse(c, fiber.StatusOK, "password successfully reset")
 }
 
 //LogoutUser ...

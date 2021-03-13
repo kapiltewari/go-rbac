@@ -84,7 +84,7 @@ Content-Type: application/json
 
 {
     "email": "johndoe@example.co",
-    "password": "lolwth@3"
+    "password": "lolwth@4"
 }
 
 ###
@@ -98,6 +98,16 @@ Content-Type: application/json
 POST  http://localhost:8080/api/v1/session/refresh-token
 Content-Type: application/json
 
+
+###
+# change password
+POST http://localhost:8080/api/v1/users/change-password
+Content-Type: application/json
+
+{
+    "current_password": "lolwth@3",
+    "new_password": "lolwth@4"
+}
 
 ###
 # logout

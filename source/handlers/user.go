@@ -3,12 +3,14 @@ package handlers
 import (
 	"database/sql"
 	"go-rbac/db/models"
+	"go-rbac/source/dtos/request"
 	"go-rbac/source/dtos/response"
 	"go-rbac/source/utils"
 	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
 )
 
@@ -103,4 +105,56 @@ func (h *Handler) MyProfile(c *fiber.Ctx) error {
 			Name: user.R.Role.Name,
 		},
 	})
+}
+
+//ChangePassword lets logged in user to change their password
+func (h *Handler) ChangePassword(c *fiber.Ctx) error {
+	//current user id
+	userFromCtx := c.Get("user")
+	userID, _ := strconv.Atoi(userFromCtx)
+
+	var req request.ChangePasswordRequest
+
+	if err := c.BodyParser(&req); err != nil {
+		return utils.SendError(c, fiber.StatusBadRequest, "")
+	}
+
+	//validate
+	errors := utils.ValidateStruct(req)
+	if errors != nil {
+		return utils.SendValidationError(c, errors)
+	}
+
+	//fetch user
+	user, err := models.Users(models.UserWhere.UserID.EQ(int64(userID))).One(c.Context(), h.DB)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
+	}
+
+	//match user's current password with given current password
+	err = utils.MatchPassword(user.Password, req.CurrentPassword)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusUnprocessableEntity, "current password invalid")
+	}
+
+	//match user' current password with given new password
+	//if password matched then return because user entered their current password as the new password
+	err = utils.MatchPassword(user.Password, req.NewPassword)
+	if err == nil {
+		return utils.SendError(c, fiber.StatusUnprocessableEntity, "new password is same as the current password")
+	}
+
+	//hash new password
+	newHashedPassword, err := utils.HashPassword(req.NewPassword)
+	if err != nil {
+		return utils.SendError(c, fiber.StatusInternalServerError, "")
+	}
+
+	//set new password as user password
+	user.Password = string(newHashedPassword)
+
+	//update password
+	user.Update(c.Context(), h.DB, boil.Infer())
+
+	return utils.SendResponse(c, fiber.StatusOK, "password successfully changed")
 }
