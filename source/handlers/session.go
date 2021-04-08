@@ -115,7 +115,7 @@ func (h *Handler) AccountActivation(c *fiber.Ctx) error {
 
 	//check if the user is active already or not
 	if user.Active == true {
-		return utils.SendError(c, fiber.StatusUnprocessableEntity, "user is active already")
+		return utils.SendError(c, fiber.StatusUnprocessableEntity, "user is already active")
 	}
 
 	//get the key
@@ -127,7 +127,7 @@ func (h *Handler) AccountActivation(c *fiber.Ctx) error {
 
 	//check if redis code is matched with req.Code
 	if code != req.Code {
-		return utils.SendError(c, fiber.StatusUnprocessableEntity, "")
+		return utils.SendError(c, fiber.StatusUnprocessableEntity, "verification code does not match")
 	}
 
 	//update user status to active
@@ -177,7 +177,7 @@ func (h *Handler) LoginUser(c *fiber.Ctx) error {
 	//else generate tokens
 	accessToken, refreshToken, err := h.GenerateTokens(c, existingUser.R.Role.Name, strconv.FormatInt(existingUser.UserID, 10))
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "")
+		return utils.SendError(c, fiber.StatusInternalServerError, "can't generate tokens")
 	}
 
 	//set httpOnly cookies for browser clients
@@ -235,12 +235,12 @@ func (h *Handler) AccountReverification(c *fiber.Ctx) error {
 
 	//if user is active already
 	if user.Active == true {
-		return utils.SendError(c, fiber.StatusUnprocessableEntity, "user is active already")
+		return utils.SendError(c, fiber.StatusUnprocessableEntity, "user is already active")
 	}
 
 	//match phone numbers
 	if req.Phone != user.Phone {
-		return utils.SendError(c, fiber.StatusUnprocessableEntity, "")
+		return utils.SendError(c, fiber.StatusUnprocessableEntity, "phone number does not match")
 	}
 
 	//generate a new otp
@@ -290,7 +290,7 @@ func (h *Handler) ForgotPassword(c *fiber.Ctx) error {
 		return utils.SendError(c, fiber.StatusInternalServerError, "")
 	}
 
-	//create link
+	//create link, must match with frontend reset password page route
 	passwordResetLink := fmt.Sprintf("%v/reset-password/%v/%v", os.Getenv("URL"), user.UserID, passwordResetToken)
 	log.Println(passwordResetLink)
 
@@ -342,7 +342,7 @@ func (h *Handler) ResetPassword(c *fiber.Ctx) error {
 
 	//match email
 	if user.Email != claims.Email {
-		return utils.SendError(c, fiber.StatusUnprocessableEntity, "")
+		return utils.SendError(c, fiber.StatusUnprocessableEntity, "email does not match")
 	}
 
 	//hash new password
@@ -386,7 +386,7 @@ func (h *Handler) LogoutUser(c *fiber.Ctx) error {
 	//validate refresh token
 	claims, err := ValidateRefreshToken(refreshToken)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusUnauthorized, "")
+		return utils.SendError(c, fiber.StatusUnauthorized, "refresh token is not valid")
 	}
 
 	//get redis key refresh-token-user-id-%s
@@ -397,7 +397,7 @@ func (h *Handler) LogoutUser(c *fiber.Ctx) error {
 
 	//match jti
 	if jti != claims.Jti {
-		return utils.SendError(c, fiber.StatusUnauthorized, "")
+		return utils.SendError(c, fiber.StatusUnauthorized, "invalid refresh token id")
 	}
 
 	//delete httpOnly cookies

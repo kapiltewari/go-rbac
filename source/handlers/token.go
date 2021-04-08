@@ -139,7 +139,7 @@ func (h *Handler) RefreshTokens(c *fiber.Ctx) error {
 	//validate refresh token
 	claims, err := ValidateRefreshToken(refreshToken)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusUnauthorized, "")
+		return utils.SendError(c, fiber.StatusUnauthorized, "refresh token not valid")
 	}
 
 	//get redis key refresh-token-user-id-%s
@@ -150,13 +150,13 @@ func (h *Handler) RefreshTokens(c *fiber.Ctx) error {
 
 	//match jti
 	if jti != claims.Jti {
-		return utils.SendError(c, fiber.StatusUnauthorized, "")
+		return utils.SendError(c, fiber.StatusUnauthorized, "invalid refresh token id")
 	}
 
 	//generate new tokens
 	accessToken, refreshToken, err := h.GenerateTokens(c, claims.Audience, claims.Subject)
 	if err != nil {
-		return utils.SendError(c, fiber.StatusInternalServerError, "")
+		return utils.SendError(c, fiber.StatusInternalServerError, "can't generate tokens")
 	}
 
 	//set new httpOnly cookies for browser clients

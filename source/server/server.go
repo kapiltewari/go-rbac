@@ -46,9 +46,6 @@ func NewServer() *Server {
 		AllowCredentials: true,
 	}))
 
-	//files
-	app.Static("/assets", "./assets")
-
 	//passed app to NewRouter() because we can then create route groups
 	//passed handler so router can have access to handler methods
 	routes.NewRouter(handler, app)
