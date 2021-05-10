@@ -50,7 +50,7 @@ func SendValidationError(c *fiber.Ctx, errors interface{}) error {
 
 //SendError send error response
 func SendError(c *fiber.Ctx, code int, message string) error {
-	//if message in empty
+	//if message is empty
 	if message == "" {
 		switch code {
 		case fiber.StatusNotFound:

@@ -8,8 +8,9 @@ Quick boilerplate code for building APIs in Go with gofiber, redis, sqlboiler, p
 4. OTP Generation And Send Via Email
 5. User Login And Generate Tokens (Paseto)
 6. Role Base Access Control
-7. Refresh Tokens
-8. Logout And Delete Tokens
+7. Change Password
+8. Refresh Tokens
+9. Logout And Delete Tokens
 
 > Setup -
 
